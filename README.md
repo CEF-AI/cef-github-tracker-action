@@ -1,17 +1,17 @@
-# CEF PR Tracker Action
+# CEF GitHub Tracker Action
 
 Reusable GitHub Action that sends PR, review, and push events to the [CEF Project Tazz](https://github.com/cef-ai/Project-Tazz-Execution-Log-Tracker) execution log tracker. One workflow file in any repo, no copy-paste of payload logic.
 
 ## Usage
 
-Create `.github/workflows/cef-pr-tracker.yaml` in your repo:
+Create `.github/workflows/cef-github-tracker.yaml` in your repo:
 
 ```yaml
-name: CEF PR Tracker
+name: CEF GitHub Tracker
 
 on:
   pull_request:
-    types: [opened, closed, reopened, synchronize]
+    types: [opened, closed, reopened]
   pull_request_review:
     types: [submitted]
   push:
@@ -21,7 +21,7 @@ jobs:
   send:
     runs-on: ubuntu-latest
     steps:
-      - uses: cef-ai/cef-pr-tracker-action@v1
+      - uses: cef-ai/cef-github-tracker-action@v1
         with:
           wallet_uri: ${{ secrets.WALLET_URI }}
           notion_api_key: ${{ secrets.NOTION_API_KEY }}
@@ -61,13 +61,13 @@ jobs:
 Use a tag (e.g. `@v1`, `@v1.0.1`) instead of `@main` so updates are intentional:
 
 ```yaml
-- uses: cef-ai/cef-pr-tracker-action@v1
+- uses: cef-ai/cef-github-tracker-action@v1
 ```
 
 ## Turning this into a repo
 
-1. Create a new repo (e.g. `cef-ai/cef-pr-tracker-action`).
+1. Create a new repo (e.g. `cef-ai/cef-github-tracker-action`).
 2. Copy the contents of this folder (at least `action.yml` and this README) into the repo root.
 3. Commit, push, and create a tag (e.g. `v1`) so others can use `@v1`.
-4. In consuming repos, use `uses: cef-ai/cef-pr-tracker-action@v1` (replace with your org/repo and tag).
-# cef-pr-tracker-action
+4. In consuming repos, use `uses: cef-ai/cef-github-tracker-action@v1` (replace with your org/repo and tag).
+# cef-github-tracker-action
