@@ -1,4 +1,4 @@
-name: 'CEF PR Tracker'
+name: 'CEF GitHub Tracker'
 description: 'Send PR, review, and push events to CEF execution log tracker (Project Tazz)'
 inputs:
   wallet_uri:
