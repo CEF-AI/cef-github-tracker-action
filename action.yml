@@ -1,0 +1,162 @@
+name: 'CEF PR Tracker'
+description: 'Send PR, review, and push events to CEF execution log tracker (Project Tazz)'
+inputs:
+  wallet_uri:
+    required: true
+    description: 'CEF wallet URI for DDC authentication'
+  notion_api_key:
+    required: true
+    description: 'Notion internal integration token'
+  github_token:
+    required: true
+    description: 'GitHub token (e.g. secrets.GITHUB_TOKEN) for API access in the payload'
+  agent_service:
+    required: true
+    description: 'CEF agent service ID'
+  workspace:
+    required: true
+    description: 'CEF workspace ID'
+  stream:
+    required: true
+    description: 'CEF event stream ID'
+  wiki_check_branches:
+    description: 'Comma-separated branches that trigger wiki staleness checks'
+    default: 'main,master'
+  ddc_base_url:
+    description: 'DDC compute base URL'
+    default: 'https://compute-1.devnet.ddc-dragon.com'
+runs:
+  using: 'composite'
+  steps:
+    - id: payload
+      env:
+        NOTION_API_KEY: ${{ inputs.notion_api_key }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        WIKI_CHECK_BRANCHES: ${{ inputs.wiki_check_branches }}
+      shell: bash
+      run: |
+        set -e
+        case "${{ github.event_name }}" in
+          pull_request)
+            jq -n \
+              --argjson e "$(cat $GITHUB_EVENT_PATH)" \
+              --arg notion "$NOTION_API_KEY" \
+              --arg token "$GITHUB_TOKEN" \
+              --arg wiki_branches "$WIKI_CHECK_BRANCHES" \
+              '{
+                event_type: "GITHUB_ACTION_PR_EVENT",
+                action: $e.action,
+                merged: ($e.pull_request.merged // false),
+                pr_number: $e.number,
+                pr_title: $e.pull_request.title,
+                pr_url: $e.pull_request.html_url,
+                pr_body: ($e.pull_request.body // ""),
+                repo: $e.repository.full_name,
+                author: $e.pull_request.user.login,
+                merged_by: ($e.pull_request.merged_by.login // null),
+                merged_at: ($e.pull_request.merged_at // null),
+                base_branch: ($e.pull_request.base.ref // null),
+                branch: ($e.pull_request.head.ref // null),
+                before: ($e.before // null),
+                after: ($e.after // null),
+                timestamp: ($e.pull_request.updated_at // $e.pull_request.created_at // ""),
+                notion_api_key: $notion,
+                github_token: $token,
+                wiki_check_branches: $wiki_branches
+              }' > payload.json
+            ;;
+          pull_request_review)
+            jq -n \
+              --argjson e "$(cat $GITHUB_EVENT_PATH)" \
+              --arg notion "$NOTION_API_KEY" \
+              --arg token "$GITHUB_TOKEN" \
+              --arg wiki_branches "$WIKI_CHECK_BRANCHES" \
+              '{
+                event_type: "GITHUB_ACTION_PR_EVENT",
+                action: (
+                  if $e.review.state == "approved" then "review_approved"
+                  elif $e.review.state == "changes_requested" then "review_changes_requested"
+                  else "review_commented"
+                  end
+                ),
+                merged: false,
+                pr_number: $e.pull_request.number,
+                pr_title: $e.pull_request.title,
+                pr_url: $e.pull_request.html_url,
+                pr_body: ($e.pull_request.body // ""),
+                repo: $e.repository.full_name,
+                author: $e.pull_request.user.login,
+                reviewer: $e.review.user.login,
+                merged_by: null,
+                merged_at: null,
+                base_branch: ($e.pull_request.base.ref // null),
+                branch: ($e.pull_request.head.ref // null),
+                before: null,
+                after: null,
+                timestamp: ($e.review.submitted_at // ""),
+                notion_api_key: $notion,
+                github_token: $token,
+                wiki_check_branches: $wiki_branches
+              }' > payload.json
+            ;;
+          push)
+            jq -n \
+              --argjson e "$(cat $GITHUB_EVENT_PATH)" \
+              --arg notion "$NOTION_API_KEY" \
+              --arg token "$GITHUB_TOKEN" \
+              --arg wiki_branches "$WIKI_CHECK_BRANCHES" \
+              '
+                $e.ref as $ref |
+                ($e.repository.default_branch // "main") as $default |
+                (if $ref == ("refs/heads/" + $default) then $default else ($ref | split("refs/heads/")[1]) end) as $branch |
+                ($e.commits | length) as $n |
+                ($e.commits[0].message // "") as $first_msg |
+                ($e.after // "") as $after |
+                (if $n == 0 then true
+                  elif ($ref == ("refs/heads/" + $default)) and ($n == 1) and ($first_msg | test("^Merge "; "i")) then true
+                  else false end) as $skip_log |
+                {
+                  event_type: "GITHUB_ACTION_PR_EVENT",
+                  action: "branch_push",
+                  merged: false,
+                  is_branch_push: true,
+                  branch: $branch,
+                  head_sha: $after,
+                  commit_messages: [$e.commits[].message],
+                  repo: $e.repository.full_name,
+                  author: ($e.pusher.login // $e.commits[0].author.username // "unknown"),
+                  pr_number: 0,
+                  pr_title: ("Branch: " + $branch),
+                  pr_url: ("https://github.com/" + $e.repository.full_name + "/commit/" + $after),
+                  pr_body: "",
+                  merged_by: null,
+                  merged_at: null,
+                  base_branch: null,
+                  before: $e.before,
+                  after: $after,
+                  timestamp: ($e.head_commit.timestamp // $e.repository.updated_at // ""),
+                  notion_api_key: $notion,
+                  github_token: $token,
+                  skip_log: $skip_log,
+                  wiki_check_branches: $wiki_branches
+                }
+              ' > payload.json
+            ;;
+          *)
+            echo "Unsupported event: ${{ github.event_name }}"
+            exit 1
+            ;;
+        esac
+        echo "payload<<EOF" >> $GITHUB_OUTPUT
+        cat payload.json >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - uses: cef-ai/Cef-Send-Event-Action@main
+      with:
+        wallet_uri: ${{ inputs.wallet_uri }}
+        ddc_base_url: ${{ inputs.ddc_base_url }}
+        agent_service: ${{ inputs.agent_service }}
+        workspace: ${{ inputs.workspace }}
+        stream: ${{ inputs.stream }}
+        event_type: GITHUB_ACTION_PR_EVENT
+        event_payload: ${{ steps.payload.outputs.payload }}
