@@ -10,6 +10,9 @@ inputs:
   github_token:
     required: true
     description: 'GitHub token (e.g. secrets.GITHUB_TOKEN) for API access in the payload'
+  gemini_api_key:
+    required: true
+    description: 'Google Gemini API key for AI operations'
   agent_service:
     required: true
     description: 'CEF agent service ID'
@@ -32,6 +35,7 @@ runs:
       env:
         NOTION_API_KEY: ${{ inputs.notion_api_key }}
         GITHUB_TOKEN: ${{ inputs.github_token }}
+        GEMINI_API_KEY: ${{ inputs.gemini_api_key }}
         WIKI_CHECK_BRANCHES: ${{ inputs.wiki_check_branches }}
       shell: bash
       run: |
@@ -42,6 +46,7 @@ runs:
               --argjson e "$(cat $GITHUB_EVENT_PATH)" \
               --arg notion "$NOTION_API_KEY" \
               --arg token "$GITHUB_TOKEN" \
+              --arg gemini "$GEMINI_API_KEY" \
               --arg wiki_branches "$WIKI_CHECK_BRANCHES" \
               '{
                 event_type: "GITHUB_ACTION_PR_EVENT",
@@ -62,6 +67,7 @@ runs:
                 timestamp: ($e.pull_request.updated_at // $e.pull_request.created_at // ""),
                 notion_api_key: $notion,
                 github_token: $token,
+                gemini_api_key: $gemini,
                 wiki_check_branches: $wiki_branches
               }' > payload.json
             ;;
@@ -70,6 +76,7 @@ runs:
               --argjson e "$(cat $GITHUB_EVENT_PATH)" \
               --arg notion "$NOTION_API_KEY" \
               --arg token "$GITHUB_TOKEN" \
+              --arg gemini "$GEMINI_API_KEY" \
               --arg wiki_branches "$WIKI_CHECK_BRANCHES" \
               '{
                 event_type: "GITHUB_ACTION_PR_EVENT",
@@ -96,6 +103,7 @@ runs:
                 timestamp: ($e.review.submitted_at // ""),
                 notion_api_key: $notion,
                 github_token: $token,
+                gemini_api_key: $gemini,
                 wiki_check_branches: $wiki_branches
               }' > payload.json
             ;;
@@ -104,6 +112,7 @@ runs:
               --argjson e "$(cat $GITHUB_EVENT_PATH)" \
               --arg notion "$NOTION_API_KEY" \
               --arg token "$GITHUB_TOKEN" \
+              --arg gemini "$GEMINI_API_KEY" \
               --arg wiki_branches "$WIKI_CHECK_BRANCHES" \
               '
                 $e.ref as $ref |
@@ -137,6 +146,7 @@ runs:
                   timestamp: ($e.head_commit.timestamp // $e.repository.updated_at // ""),
                   notion_api_key: $notion,
                   github_token: $token,
+                  gemini_api_key: $gemini,
                   skip_log: $skip_log,
                   wiki_check_branches: $wiki_branches
                 }
