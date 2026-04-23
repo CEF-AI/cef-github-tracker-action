@@ -170,3 +170,10 @@ runs:
         stream: ${{ inputs.stream }}
         event_type: GITHUB_ACTION_PR_EVENT
         event_payload: ${{ steps.payload.outputs.payload }}
+
+    # Keep the job (and therefore GITHUB_TOKEN) alive long enough for CEF
+    # to process the event. Without this, GITHUB_TOKEN is revoked when the
+    # job ends — often before CEF's fetch-code task pulls PR data.
+    - name: Keep GITHUB_TOKEN alive for CEF processing
+      shell: bash
+      run: sleep 30
